@@ -1,3 +1,9 @@
+const DIET = {
+  Herbivore: 'Herbivore',
+  Omnivore: 'Omnivore',
+  Carnivore: 'Carnivore'
+};
+
 class Creature {
   constructor(water, waterNeed, food, foodNeed, diet, speed) {
     this.water = water;
@@ -11,19 +17,19 @@ class Creature {
 
 class Herbivore extends Creature {
   constructor() {
-    super(0, 1, 0, 1, 'Herbivore', 1);
+    super(0, 1, 0, 1, DIET.Herbivore, 1);
   }
 }
 
 class Omnivore extends Creature {
   constructor() {
-    super(0, 1, 0, 1, 'Omnivore', 1);
+    super(0, 1, 0, 1, DIET.Omnivore, 1);
   }
 }
 
 class Carnivore extends Creature {
   constructor() {
-    super(0, 1, 0, 1, 'Carnivore', 1);
+    super(0, 1, 0, 1, DIET.Carnivore, 1);
   }
 }
 
@@ -39,15 +45,15 @@ class Environment {
 
 class Jungle extends Environment {
   constructor() {
-    super('Jungle', 'High', 'High', 'High', 100);
+    super('Jungle', 'High', 'High', 'High', 50);
   }
 }
 
 class Game {
   constructor() {
-    this.herbivores = this.createCreatures(10, 'Herbivore');
-    this.omnivores = this.createCreatures(10, 'Omnivore');
-    this.carnivores = this.createCreatures(10, 'Carnivore');
+    this.herbivores = this.createCreatures(10, DIET.Herbivore);
+    this.omnivores = this.createCreatures(3, DIET.Omnivore);
+    this.carnivores = this.createCreatures(3, DIET.Carnivore);
     this.creatures = [
       ...this.herbivores,
       ...this.omnivores,
@@ -63,13 +69,13 @@ class Game {
 
     for (let i = 0; i < number; i++) {
       switch (type) {
-        case 'Herbivore':
+        case DIET.Herbivore:
           creatures.push(new Herbivore());
           break;
-        case 'Omnivore':
+        case DIET.Omnivore:
           creatures.push(new Omnivore());
           break;
-        case 'Carnivore':
+        case DIET.Carnivore:
           creatures.push(new Carnivore());
           break;
       }
@@ -79,29 +85,52 @@ class Game {
   }
 
   startNaturalSelection() {
-    // for (let i = 0; i < 12; i++) {
-    this.runOneMonth();
-    this.runOneMonth();
-    // }
+    for (let i = 0; i < 3; i++) {
+      this.runOneMonth();
+      // this.runOneMonth();
+    }
   }
 
   runOneMonth() {
+    const herbs = this.herbivores.length;
+    const omnis = this.omnivores.length;
+    const carns = this.carnivores.length;
+    let herbsEaten = 0;
+
     this.drink();
 
     this.graze();
 
     this.hunt();
-    console.log(this.herbivores.length);
 
-    this.die(this.herbivores);
-    this.die(this.omnivores);
-    this.die(this.carnivores);
+    herbsEaten = herbs - this.herbivores.length;
+
+    console.log('Herbs eaten', herbsEaten);
+
+    this.herbivores = this.die(this.herbivores);
+    this.omnivores = this.die(this.omnivores);
+    this.carnivores = this.die(this.carnivores);
 
     this.creatures = [
       ...this.herbivores,
       ...this.omnivores,
       ...this.carnivores
     ];
+
+    console.log(
+      this.herbivores,
+      `Herb survival rate ${this.herbivores.length}/${herbs}`
+    );
+
+    console.log(
+      this.omnivores,
+      `Omni survival rate ${this.omnivores.length}/${omnis}`
+    );
+
+    console.log(
+      this.carnivores,
+      `Carn survival rate ${this.carnivores.length}/${carns}`
+    );
 
     console.log(this.creatures);
 
@@ -128,6 +157,11 @@ class Game {
   }
 
   graze() {
+    if (!this.environment.ediblePlants) {
+      console.error('All plants are already gone.');
+      return;
+    }
+
     const plantEaters = [...this.herbivores, ...this.omnivores];
 
     this.herbivores = [];
@@ -141,8 +175,8 @@ class Game {
         1
       );
 
-      // base chance (0.5) * water * speed = Graze success chance
-      const gotFood = 0.5 * creature.water * creature.speed;
+      // base chance (0.75) * water * speed = Graze success chance
+      const gotFood = 0.75 * creature.water * creature.speed;
       const random = Math.random();
 
       console.log(
@@ -154,11 +188,6 @@ class Game {
       );
 
       if (gotFood > random) {
-        // If Food is all gone
-        if (!this.environment.ediblePlants) {
-          break;
-        }
-
         this.environment.ediblePlants--;
 
         console.log(
@@ -171,7 +200,7 @@ class Game {
         creature.food = 1;
       }
 
-      if (creature.diet === 'Herbivore') {
+      if (creature.diet === DIET.Herbivore) {
         this.herbivores.push(creature);
       } else {
         this.omnivores.push(creature);
@@ -180,6 +209,24 @@ class Game {
   }
 
   hunt() {
+    if (!this.herbivores.length) {
+      console.error('All herbivores are already dead.');
+      return;
+    }
+
+    if (!this.omnivores.length) {
+      console.warn('All omnivores are already dead.');
+    }
+
+    if (!this.carnivores.length) {
+      console.warn('All carnivores are already dead.');
+    }
+
+    if (!this.omnivores.length && !this.carnivores.length) {
+      console.warn('All predators are already dead.');
+      return;
+    }
+
     // Carnivores are randomly picked and have a chance to hunt
     // Calculations based on animal speed speed is augmented by water
     // 25% base chance
@@ -190,6 +237,11 @@ class Game {
     this.carnivores = [];
 
     while (predators.length) {
+      if (!this.herbivores.length) {
+        console.error('All herbivores are already dead.');
+        return;
+      }
+
       const [predator] = predators.splice(
         Math.floor(Math.random() * predators.length),
         1
@@ -211,13 +263,16 @@ class Game {
       );
 
       // If the omnivore already ate plants skip them
-      if (predator.diet === 'Omnivore' && predator.food) {
+      if (predator.diet === DIET.Omnivore && predator.food) {
+        console.info('Omnivore already ate plants.');
+        this.omnivores.push(predator);
         continue;
       }
 
       if (gotFood > random) {
         // If Food is all gone
         if (!this.herbivores.length) {
+          console.error('No more prey in the environment.');
           break;
         }
 
@@ -230,7 +285,7 @@ class Game {
         predator.food = 1;
       }
 
-      if (predator.diet === 'Omnivore') {
+      if (predator.diet === DIET.Omnivore) {
         this.omnivores.push(predator);
       } else {
         this.carnivores.push(predator);
@@ -239,17 +294,20 @@ class Game {
   }
 
   die(creatures) {
-    for (let i = 0; i < creatures.length; i++) {
-      if (creatures[i].food === 0) {
+    return creatures.filter(creature => {
+      if (creature.food === 0) {
         console.log(
-          creatures[i].diet,
+          creature.diet,
           'died of starvation',
-          creatures[i].water,
+          creature.water,
           'water'
         );
-        creatures.splice(i, 1);
+
+        return false;
       }
-    }
+
+      return true;
+    });
   }
 
   reproduce() {
