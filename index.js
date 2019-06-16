@@ -5,31 +5,37 @@ const DIET = {
 };
 
 class Creature {
-  constructor(water, waterNeed, food, foodNeed, diet, speed) {
+  constructor(water, waterNeed, food, foodNeed, diet, health, baseSpeed) {
     this.water = water;
     this.waterNeed = waterNeed;
     this.food = food;
     this.foodNeed = foodNeed;
     this.diet = diet;
-    this.speed = speed;
+    this.health = health;
+    this.baseSpeed = baseSpeed;
+  }
+
+  get speed() {
+    // Calculation based on how much water, food, and health the creature has.
+    return this.baseSpeed * this.water * this.health;
   }
 }
 
 class Herbivore extends Creature {
   constructor() {
-    super(0, 1, 0, 1, DIET.Herbivore, 1);
+    super(0, 1, 0, 1, DIET.Herbivore, 1, 1);
   }
 }
 
 class Omnivore extends Creature {
   constructor() {
-    super(0, 1, 0, 1, DIET.Omnivore, 1);
+    super(0, 1, 0, 1, DIET.Omnivore, 1, 1);
   }
 }
 
 class Carnivore extends Creature {
   constructor() {
-    super(0, 1, 0, 1, DIET.Carnivore, 1);
+    super(0, 1, 0, 1, DIET.Carnivore, 1, 1);
   }
 }
 
@@ -45,7 +51,7 @@ class Environment {
 
 class Jungle extends Environment {
   constructor() {
-    super('Jungle', 'High', 'High', 'High', 50);
+    super('Jungle', 'High', 'High', 'High', 20);
   }
 }
 
@@ -85,9 +91,8 @@ class Game {
   }
 
   startNaturalSelection() {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 1; i++) {
       this.runOneMonth();
-      // this.runOneMonth();
     }
   }
 
@@ -99,10 +104,12 @@ class Game {
 
     this.drink();
 
+    // Herbivores usually have a lot of time to graze before getting hunted
     this.graze();
 
     this.hunt();
 
+    // Calculated by using the original number of herbs minus the number after hunting
     herbsEaten = herbs - this.herbivores.length;
 
     console.log('Herbs eaten', herbsEaten);
@@ -142,7 +149,12 @@ class Game {
       ...this.carnivores
     ];
 
+    this.heal();
+
     console.log(this.creatures);
+
+    // Plants regrow
+    this.environment.ediblePlants += 10;
   }
 
   drink() {
@@ -170,6 +182,13 @@ class Game {
     // Herbivores + Omnivores are randomly picked then have a random chance to get food based on the food number stat
     // Better chance to find food when there is a lot of it
     while (plantEaters.length) {
+      console.log('<------ New Prey ------>');
+
+      if (!this.environment.ediblePlants) {
+        console.error('All plants are already gone.');
+        continue;
+      }
+
       const [creature] = plantEaters.splice(
         Math.floor(Math.random() * plantEaters.length),
         1
@@ -237,29 +256,16 @@ class Game {
     this.carnivores = [];
 
     while (predators.length) {
+      console.log('<------ New Predator ------>');
+
       if (!this.herbivores.length) {
         console.error('All herbivores are already dead.');
-        return;
+        continue;
       }
 
       const [predator] = predators.splice(
         Math.floor(Math.random() * predators.length),
         1
-      );
-
-      const preyIdx = Math.floor(Math.random() * this.herbivores.length);
-      const prey = this.herbivores[preyIdx];
-
-      // base chance (0.25) * water * predator speed / prey speed = Hunt success chance
-      const gotFood = 0.25 * predator.water * (predator.speed / prey.speed);
-      const random = Math.random();
-
-      console.log(
-        predator.diet,
-        'has a',
-        gotFood,
-        'chance to get food',
-        random.toFixed(2)
       );
 
       // If the omnivore already ate plants skip them
@@ -269,9 +275,32 @@ class Game {
         continue;
       }
 
-      if (gotFood > random) {
+      const preyIdx = Math.floor(Math.random() * this.herbivores.length);
+      const prey = this.herbivores[preyIdx];
+
+      // base chance (0.25) * predator speed / prey speed = Hunt success chance
+      const gotFood = 0.25 * (predator.speed / prey.speed);
+      const preyInjuryChance = 0.25 * (predator.speed / prey.speed);
+      const predatorInjuryChance = 0.25 * (predator.speed / prey.speed);
+
+      const huntRand = Math.random();
+      const preyInjuryRand = Math.random();
+      const predatorInjuryRand = Math.random();
+
+      console.log(
+        predator.diet,
+        'has a',
+        gotFood,
+        'chance to get food',
+        huntRand.toFixed(2)
+      );
+
+      // The predator killed the prey
+      if (gotFood > huntRand) {
         // If Food is all gone
         if (!this.herbivores.length) {
+          // TODO: Does this get called?
+          debugger;
           console.error('No more prey in the environment.');
           break;
         }
@@ -283,6 +312,59 @@ class Game {
         console.log(predator.diet, 'got food', this.herbivores.length, 'left');
 
         predator.food = 1;
+      } else {
+        console.log(
+          prey.diet,
+          'has a',
+          preyInjuryChance.toFixed(2),
+          'chance to be injured',
+          preyInjuryRand.toFixed(2)
+        );
+
+        // The predator failed the hunt
+        if (preyInjuryChance > preyInjuryRand) {
+          prey.health -= preyInjuryRand;
+          prey.health = parseFloat(prey.health.toFixed(2)); // Round health to 2 decimals
+
+          console.log(
+            'Prey was injured',
+            preyInjuryChance.toFixed(2),
+            'New health',
+            prey.health
+          );
+
+          if (prey.health <= 0) {
+            console.info('Prey died from injuries');
+            this.herbivores.splice(preyIdx, 1);
+          }
+        }
+      }
+
+      console.log(
+        predator.diet,
+        'has a',
+        predatorInjuryChance.toFixed(2),
+        'chance to be injured',
+        predatorInjuryRand.toFixed(2)
+      );
+
+      if (predatorInjuryChance > predatorInjuryRand) {
+        predator.health -= predatorInjuryRand;
+        predator.health = parseFloat(predator.health.toFixed(2)); // Round health to 2 decimals
+
+        console.log(
+          predator.diet,
+          'was injured',
+          predatorInjuryChance.toFixed(2),
+          'New health',
+          predator.health
+        );
+
+        if (predator.health <= 0) {
+          console.info('Predator died from injuries');
+          // We skip adding the predator to the list
+          continue;
+        }
       }
 
       if (predator.diet === DIET.Omnivore) {
@@ -299,8 +381,10 @@ class Game {
         console.log(
           creature.diet,
           'died of starvation',
-          creature.water,
-          'water'
+          creature.health,
+          'health',
+          creature.speed,
+          'speed'
         );
 
         return false;
@@ -315,6 +399,18 @@ class Game {
     this.omnivores = [...this.omnivores].concat(...this.omnivores);
     this.carnivores = [...this.carnivores].concat(...this.carnivores);
   }
+
+  heal() {
+    return this.creatures.forEach(creature => {
+      if (creature.health + 10 <= 100) {
+        creature.health += 10;
+      }
+    });
+  }
+
+  /**
+   * Private Helper Methods
+   */
 }
 
 const game = new Game();
